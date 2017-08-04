@@ -1,10 +1,19 @@
 # Class projects for UCLA Biostatistics M.S. degree
-# Traffic in Los Angeles County.pdf - Report. Bayesian linear regression to identify LA county characteristics that correlate with higher vehicle miles traveled per capita. Data was collected from the US Census program and California's Traffic Census Program
-# Traffic in Los Angeles County Modeling and Figures.Rmd - R-Code. Bayesian linear regression was done using the JAGS package.
-# MCMCsamplingmethods.pdf - Report. Implementation from scratch of Gibbs sampler and Metropolis Hastings (independent and random-walk) algorithm to simulate the Banana Distribution.
-# MCMCsamplingmethods.Rmd - R-code to generate the distributions.
-# NonparametericTests.pdf - Report. Several nonparametric tests implemented to examine differences in charactersitics of OECD and non-OECD countries, and the effect on various biomarkers in HIV positive/negative patients.
-# NonparametericTests.Rmd - R-code to perform the tests and generate figures.
-# TitanicML.pdf - Report. Predict survival of passengers on titanic with SVM, Random Forest, and regularized logistic regression.
-# TitanicML.Rmd - R-code implementing the above ML 
-# The Dynamic Relationship between Gene Expression and Epigenetically Modified Enhancers.pdf - Examines the relationship between epigentic markers and gene expression using the Generalized Liquid Association method.
+
+Traffic in Los Angeles County.pdf - Report. Bayesian linear regression to identify LA county characteristics that correlate with higher vehicle miles traveled per capita. Data was collected from the US Census program and California's Traffic Census Program
+
+Traffic in Los Angeles County Modeling and Figures.Rmd - R-Code. Bayesian linear regression was done using the JAGS package.
+
+MCMCsamplingmethods.pdf - Report. Implementation from scratch of Gibbs sampler and Metropolis Hastings (independent and random-walk) algorithm to simulate the Banana Distribution.
+
+MCMCsamplingmethods.Rmd - R-code to generate the distributions.
+
+NonparametericTests.pdf - Report. Several nonparametric tests implemented to examine differences in charactersitics of OECD and non-OECD countries, and the effect on various biomarkers in HIV positive/negative patients.
+
+NonparametericTests.Rmd - R-code to perform the tests and generate figures.
+
+TitanicML.pdf - Report. Predict survival of passengers on titanic with SVM, Random Forest, and regularized logistic regression.
+
+TitanicML.Rmd - R-code implementing the above ML 
+
+The Dynamic Relationship between Gene Expression and Epigenetically Modified Enhancers.pdf - Examines the relationship between epigentic markers and gene expression using the Generalized Liquid Association method.
