@@ -1,0 +1,575 @@
+---
+title: "Appendix"
+output: pdf_document
+fig.caption: yes
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r,include=FALSE}
+#READ IN DATA
+library(knitr)
+library(R2jags)
+trafficdata=read.csv('Data2014.csv',row.names=1)
+priordata=read.csv('BetaPrior2013MLE.csv',row.names=1)
+load("AddBurnin.RData")
+
+significant<-function(x){
+  sig=rep('',dim(x)[1])
+  for(i in 1:nrow(x)){
+    if(x[i,5]>.99|x[i,7]>.99){
+      sig[i]='***'
+    }
+    else if(x[i,5]>.95|x[i,7]>.95){
+      sig[i]='**'
+    }
+    else if(x[i,5]>.9|x[i,7]>.9){
+      sig[i]='*'
+    }
+  }
+  return(sig);
+}
+
+mysummary2 = function(invector) {
+  c(mean(invector), sd(invector), quantile(invector, .025), 
+    quantile(invector,.975),
+    length(invector[invector>0])/length(invector),
+    sum(ifelse(invector == 0, 1,0))/length(invector),length(invector[invector<0])/length(invector))
+}
+
+
+colnames(trafficdata) <- c("BlackPercentage", "AsianPercentage", "HispanicPercentage", "NumberHousingUnits","OwnedHousesPercentage", "MedianValueOfHouse","HighSchoolGradPercentage","BachelorPercentage","WorkingPercentage","RetailSales",
+                           "MeanTravelTimeToWork","MedianHouseholdIncome","PerCapitaIncome","PovertyPercentage","PopulationDensity","VMTperCapita")
+rownames(priordata) <- c("Intercept","BlackPercentage", "AsianPercentage", "HispanicPercentage", "NumberHousingUnits","OwnedHousesPercentage", "MedianValueOfHouse","HighSchoolGradPercentage","BachelorPercentage","WorkingPercentage","RetailSales",
+                         "MeanTravelTimeToWork","MedianHouseholdIncome","PerCapitaIncome","PovertyPercentage","PopulationDensity")
+
+betanames= c("BlackPercentage", "AsianPercentage", "HispanicPercentage", "NumberHousingUnits","OwnedHousesPercentage", "MedianValueOfHouse","HighSchoolGradPercentage","BachelorPercentage","WorkingPercentage","RetailSales",
+                                   "MeanTravelTimeToWork","MedianHouseholdIncome","PerCapitaIncome","PovertyPercentage","PopulationDensity","Intercept")
+
+#SEPARATE X & Y
+x<-as.matrix(trafficdata[,1:ncol(trafficdata)-1])
+y<-trafficdata[,"VMTperCapita"]
+
+
+
+reg = lm(y~(x))
+summary(reg) # classical regression
+# There's a problem, what is it?
+# Why is there a problem?
+set.seed(1)
+
+
+model<-function()
+{ 
+  for(i in 1:N) {
+    y[i] ~ dnorm( mu[i] , tau )
+    
+    mu[i] <- beta0 + delta[1]*beta[1]*x[i,1]+ delta[2]*beta[2]*x[i,2]+ delta[3]*beta[3]*x[i,3] + delta[4]*beta[4]*x[i,4]+ delta[5]*beta[5]*x[i,5]+ 
+      delta[6]*beta[6]*x[i,6]+ delta[7]*beta[7]*x[i,7]+ delta[8]*beta[8]*x[i,8]+ delta[9]*beta[9]*x[i,9] + delta[10]*beta[10]*x[i,10]+ delta[11]*beta[11]*x[i,11]
+    + delta[12]*beta[12]*x[i,12]+ delta[13]*beta[13]*x[i,13]+ delta[14]*beta[14]*x[i,14]+ delta[15]*beta[15]*x[i,15]+epsilon[i]
+    
+    epsilon[i] ~ dnorm(randMu,randPrec)
+  }
+  
+  beta0 ~ dnorm( mbeta0 , precbeta0)
+  
+  deltatotal <- delta[1] + delta[2] + delta[3] + delta[4]
+  + delta[5] +  delta[6] +  delta[7] + delta[8] +  delta[9] +  delta[10] + delta[11] 
+  + delta[12] + delta[13] + delta[14]+ delta[15]
+  
+  for (j in 1:K) {
+    beta[j] ~ dnorm( m[j] , prec[j] )
+    delta[j]~dbern(pidelta)
+    betadelta[j]=beta[j]*delta[j]
+  }
+  tau ~ dgamma( tau.a , tau.b )
+  randPrec ~dgamma(randPrec.a,randPrec.b)
+  sigma <- 1 / sqrt( tau )
+}
+
+
+dat2013=read.csv('Data2013.csv',row.names=1)
+a=as.matrix(dat2013[,16])
+b=as.matrix(dat2013[,1:15])
+selectlm=(lm(a~scale(b)))
+coefs=summary(lm(a~scale(b)))$coefficients
+
+priordata=cbind(coefs[,1],1/coefs[,2]^2)
+
+#Sigma^2 of prior is 339.70 with 52 degrees of freedom
+#Variance of random effect should be 25 assuming that the random effect could account for all of the variation of traffic in all the different cities.
+#Choose a gamma distribution with a mean of 1/25 for the precision. The standard deviation should be equal to 1/2 of the mean so
+#the range of the variance plus or minus itself should be covered. Variance should equal to (1/50)^2 so 2*SD = 1/25.
+#Thus a=4, b=100
+
+dataA<-list(N=68, K=15, m=priordata[-1,1], 
+            prec=priordata[-1,2], tau.a=26,
+            tau.b=8832.2, mbeta0=priordata[1,1], precbeta0=priordata[1,2],randMu=0,randPrec.a=4,randPrec.b=2500, x=scale(x), y=y,pidelta=.5)
+
+inits<-rep(list(list(randPrec=1,beta0=0, beta=rep(1,15),tau=1,epsilon=rep(1,68),delta=rep(.5,15))),1)
+
+parameters <- c("beta0", "beta" , "tau","epsilon","sigma","randPrec","delta","deltatotal","betadelta")
+
+
+trafficmodel <- jags (dataA, inits, parameters, model, n.chains=1, 
+                      n.iter=200000, n.thin=1, DIC=FALSE)
+
+Output1=AddBurnin(trafficmodel$BUGSoutput$sims.array,burnin=50000,n.thin=1)
+
+
+
+fullmatrix=(Output1$Burnin.sims.matrix)
+
+SummaryA = t(apply(fullmatrix, 2, mysummary2))
+SummaryA = cbind(data.frame(SummaryA),significant(SummaryA))
+colnames(SummaryA) = c("mean", "sd", " 2.50%", "97.5%", "P(>0|Y)", "P(=0|Y)","P(<0|Y)")
+
+
+
+#MODELS FOR SENSITIVITY ANALYSIS
+
+#CHANGE WEIGHT OF 2013 DATA
+weight=.05
+dataB<-list(N=68, K=15, m=priordata[-1,1], 
+            prec=weight*priordata[-1,2], tau.a=26,
+            tau.b=8832.2, mbeta0=priordata[1,1], precbeta0=weight*priordata[1,2],randMu=0,randPrec.a=4,randPrec.b=2500, x=scale(x), y=y,pidelta=.5)
+
+weight=.1
+modelB <- jags (dataB, inits, parameters, model, n.chains=1, 
+                n.iter=200000, n.thin=1, DIC=FALSE)
+#1/5 precision mean, same variance
+dataC<-list(N=68, K=15, m=priordata[-1,1], 
+            prec=weight*priordata[-1,2], tau.a=26,
+            tau.b=8832.2, mbeta0=priordata[1,1], precbeta0=weight*priordata[1,2],randMu=0,randPrec.a=4,randPrec.b=2500, x=scale(x), y=y,pidelta=.5)
+
+modelC <- jags (dataC, inits, parameters, model, n.chains=1, 
+                n.iter=200000, n.thin=1, DIC=FALSE)
+
+weight=.5
+dataD<-list(N=68, K=15, m=priordata[-1,1], 
+            prec=weight*priordata[-1,2], tau.a=26,
+            tau.b=8832.2, mbeta0=priordata[1,1], precbeta0=weight*priordata[1,2],randMu=0,randPrec.a=4,randPrec.b=2500, x=scale(x), y=y,pidelta=.5)
+
+modelD <- jags (dataD, inits, parameters, model, n.chains=1, 
+                n.iter=200000, n.thin=1, DIC=FALSE)
+
+OutputB=AddBurnin(modelB$BUGSoutput$sims.array,burnin=50000,n.thin=1)
+
+OutputC=AddBurnin(modelC$BUGSoutput$sims.array,burnin=50000,n.thin=1)
+
+OutputD=AddBurnin(modelD$BUGSoutput$sims.array,burnin=50000,n.thin=1)
+
+SummaryB = t(apply(OutputB$Burnin.sims.matrix, 2, mysummary2))
+SummaryB = cbind(data.frame(SummaryB),significant(SummaryB))
+colnames(SummaryB) = c("mean", "sd", " 2.50%", "97.5%", "P(>0|Y)", "P(=0|Y)","P(<0|Y)")
+
+SummaryC = t(apply(OutputC$Burnin.sims.matrix, 2, mysummary2))
+SummaryC = cbind(data.frame(SummaryC),significant(SummaryC))
+colnames(SummaryC) = c("mean", "sd", " 2.50%", "97.5%", "P(>0|Y)", "P(=0|Y)","P(<0|Y)")
+
+SummaryD = t(apply(OutputD$Burnin.sims.matrix, 2, mysummary2))
+SummaryD = cbind(data.frame(SummaryD),significant(SummaryD))
+colnames(SummaryD) = c("mean", "sd", " 2.50%", "97.5%", "P(>0|Y)", "P(=0|Y)","P(<0|Y)")
+
+
+#CHANGE RANDOM EFFECT VARIANCE ASSUMPTION
+
+dataE<-list(N=68, K=15, m=priordata[-1,1], 
+            prec=priordata[-1,2], tau.a=26,
+            tau.b=8832.2, mbeta0=priordata[1,1], precbeta0=priordata[1,2],randMu=0,randPrec.a=1,randPrec.b=2500,x=scale(x), y=y,pidelta=.5)
+
+dataF<-list(N=68, K=15, m=priordata[-1,1], 
+            prec=priordata[-1,2], tau.a=26,
+            tau.b=8832.2, mbeta0=priordata[1,1], precbeta0=priordata[1,2],randMu=0,randPrec.a=2,randPrec.b=2500, x=scale(x), y=y,pidelta=.5)
+
+dataG<-list(N=68, K=15, m=priordata[-1,1], 
+            prec=priordata[-1,2], tau.a=26,
+            tau.b=8832.2, mbeta0=priordata[1,1], precbeta0=priordata[1,2],randMu=0,randPrec.a=8,randPrec.b=2500, x=scale(x), y=y,pidelta=.5)
+
+dataH<-list(N=68, K=15, m=priordata[-1,1], 
+            prec=priordata[-1,2], tau.a=26,
+            tau.b=8832.2, mbeta0=priordata[1,1], precbeta0=priordata[1,2],randMu=0,randPrec.a=16,randPrec.b=2500, x=scale(x), y=y,pidelta=.5)
+
+modelE <- jags (dataE, inits, parameters, model, n.chains=1, 
+                n.iter=200000, n.thin=1, DIC=FALSE)
+modelF <- jags (dataF, inits, parameters, model, n.chains=1, 
+                n.iter=200000, n.thin=1, DIC=FALSE)
+modelG <- jags (dataG, inits, parameters, model, n.chains=1, 
+                n.iter=200000, n.thin=1, DIC=FALSE)
+modelH <- jags (dataH, inits, parameters, model, n.chains=1, 
+                n.iter=200000, n.thin=1, DIC=FALSE)
+
+OutputE=AddBurnin(modelE$BUGSoutput$sims.array,burnin=50000,n.thin=1)
+OutputF=AddBurnin(modelF$BUGSoutput$sims.array,burnin=50000,n.thin=1)
+OutputG=AddBurnin(modelG$BUGSoutput$sims.array,burnin=50000,n.thin=1)
+OutputH=AddBurnin(modelH$BUGSoutput$sims.array,burnin=50000,n.thin=1)
+
+
+SummaryE = t(apply(OutputE$Burnin.sims.matrix, 2, mysummary2))
+SummaryE = cbind(data.frame(SummaryE),significant(SummaryE))
+colnames(SummaryE) = c("mean", "sd", " 2.50%", "97.5%", "P(>0|Y)", "P(=0|Y)","P(<0|Y)")
+
+SummaryF = t(apply(OutputF$Burnin.sims.matrix, 2, mysummary2))
+SummaryF = cbind(data.frame(SummaryF),significant(SummaryF))
+colnames(SummaryF) = c("mean", "sd", " 2.50%", "97.5%", "P(>0|Y)", "P(=0|Y)","P(<0|Y)")
+
+SummaryG = t(apply(OutputG$Burnin.sims.matrix, 2, mysummary2))
+SummaryG = cbind(data.frame(SummaryG),significant(SummaryG))
+colnames(SummaryG) = c("mean", "sd", " 2.50%", "97.5%", "P(>0|Y)", "P(=0|Y)","P(<0|Y)")
+
+SummaryH = t(apply(OutputH$Burnin.sims.matrix, 2, mysummary2))
+SummaryH = cbind(data.frame(SummaryH),significant(SummaryH))
+colnames(SummaryH) = c("mean", "sd", " 2.50%", "97.5%", "P(>0|Y)", "P(=0|Y)","P(<0|Y)")
+
+#CHANGE PIDELTA ASSUMPTION
+datapiA<-list(N=68, K=15, m=priordata[-1,1], 
+            prec=priordata[-1,2], tau.a=26,
+            tau.b=8832.2, mbeta0=priordata[1,1], precbeta0=priordata[1,2],randMu=0,randPrec.a=1,randPrec.b=2500,x=scale(x), y=y,pidelta=.25)
+
+datapiB<-list(N=68, K=15, m=priordata[-1,1], 
+            prec=priordata[-1,2], tau.a=26,
+            tau.b=8832.2, mbeta0=priordata[1,1], precbeta0=priordata[1,2],randMu=0,randPrec.a=2,randPrec.b=2500, x=scale(x), y=y,pidelta=.75)
+
+modelpiA <- jags (datapiA, inits, parameters, model, n.chains=1, 
+                n.iter=200000, n.thin=1, DIC=FALSE)
+modelpiB <- jags (datapiB, inits, parameters, model, n.chains=1, 
+                n.iter=200000, n.thin=1, DIC=FALSE)
+
+OutputpiA=AddBurnin(modelpiA$BUGSoutput$sims.array,burnin=50000,n.thin=1)
+OutputpiB=AddBurnin(modelpiB$BUGSoutput$sims.array,burnin=50000,n.thin=1)
+
+
+SummarypiA = t(apply(OutputpiA$Burnin.sims.matrix, 2, mysummary2))
+SummarypiA = cbind(data.frame(SummarypiA),significant(SummarypiA))
+colnames(SummarypiA) = c("mean", "sd", " 2.50%", "97.5%", "P(>0|Y)", "P(=0|Y)","P(<0|Y)")
+
+SummarypiB = t(apply(OutputpiB$Burnin.sims.matrix, 2, mysummary2))
+SummarypiB = cbind(data.frame(SummarypiB),significant(SummarypiB))
+colnames(SummarypiB) = c("mean", "sd", " 2.50%", "97.5%", "P(>0|Y)", "P(=0|Y)","P(<0|Y)")
+
+
+#SUMMARIES AND DIAGNOSTICS:
+```
+
+
+```{r,echo=FALSE,fig.caption="Autocorrelation plots for beta*delta and epsilon"}
+
+#AUTOCORRELATION PLOTS FOR BETA
+par(mfrow=c(4,4))      # sets plots in a 3x3 grid
+par(mar=c(3.1,4.1,2.1,2.1))   # removes space from between plots and increases
+# the size of the plots.  
+for(i in 17:32){
+  acf(Output1$Burnin.sims.array[,1,i], main="",lag.max=150)     #autocorrelation plots
+  mtext(betanames[i-16],side=3, line=1, cex=.8)
+}
+
+```
+
+
+```{r,echo=FALSE,fig.caption="Autocorrelation plots for beta*delta and epsilon"}
+par(mfrow=c(4,4))      # sets plots in a 3x3 grid
+par(mar=c(3.1,4.1,2.1,2.1))   # removes space from between plots and increases
+# the size of the plots.  
+for(i in 48:63){
+  acf(Output1$Burnin.sims.array[,1,i], main="",lag.max=200)     #autocorrelation plots
+  mtext(colnames(Output1$Burnin.sims.array[,1,])[i],side=3, line=1, cex=.7)
+}
+
+```
+
+
+```{r,echo=FALSE,fig.cap="Autocorrelation plots for randPrec,Tau, and deltatotal"}
+
+#Autocorrelation plots for randprec, sigma, tau
+par(mfrow=c(1,3))
+par(mar=c(3.1,4.1,2.1,2.1))
+acf(Output1$Burnin.sims.array[,1,116], main="",lag.max=100)     #autocorrelation plots
+mtext("randPrec",side=3, line=1, cex=.8)
+
+acf(Output1$Burnin.sims.array[,1,118], main="",lag.max=100)     #autocorrelation plots
+mtext("Tau",side=3, line=1, cex=.8)
+
+acf(Output1$Burnin.sims.array[,1,"deltatotal"], main="",lag.max=100)     #autocorrelation plots
+mtext("deltaTotal",side=3, line=1, cex=.8)
+
+```
+
+
+```{r,echo=FALSE,fig.cap="Timeseries plots for beta*delta"}
+
+#TIME SERIES PLOT FOR BETAS
+par(mfrow=c(4,4))      # sets plots in a 3x3 grid
+par(mar=c(3.1,4.1,2.1,2.1))   # removes space from between plots and increases
+# the size of the plots.  
+for(i in 17:31){
+  plot(500001:500900,Output1$Burnin.sims.array[90001:90900,1,i], type="l", xlab="iteration", ylab="")  
+  mtext(betanames[i-16],side=3, line=1, cex=.7)
+}
+```
+
+
+```{r,echo=FALSE,fig.cap="Autocorrelation plots for Epsilons"}
+
+#TIME SERIES FOR THE EPSILONS
+par(mfrow=c(4,4))      # sets plots in a 3x3 grid
+par(mar=c(3.1,4.1,2.1,2.1))   # removes space from between plots and increases
+# the size of the plots.  
+for(i in 48:63){
+  plot(5000:5500,Output1$Burnin.sims.array[5000:5500,1,i], type="l", xlab="iteration", ylab="")  
+  mtext(colnames(Output1$Burnin.sims.array[,1,])[i],side=3, line=1, cex=.7)
+}
+```
+
+
+```{r,echo=FALSE,fig.cap="Posterior plots for beta*delta"}
+#POSTERIOR BETA PLOTS
+par(mfrow=c(4,4))      # sets plots in a 3x3 grid
+par(mar=c(3.1,4.1,2.1,2.1))   # removes space from between plots and increases
+# the size of the plots.  
+for(i in 17:31){
+  plot(density(fullmatrix[,i]),main="")
+  mtext(betanames[i-16],side=3, line=1, cex=.7)
+  abline(v=0,col="red")
+}
+
+```
+
+
+```{r,echo=FALSE,fig.cap="Prior vs Posterior plots for Significant Cofficients"}
+#PRIOR POSTERIOR PLOTS for significant beta's
+par(mfrow=c(1,2))
+plot(density(fullmatrix[,23]),col="red",main="High School Graduate Posterior")
+lines(density(rnorm(50000,priordata[8,1],1/priordata[2,2])),col="blue")
+abline(v=0,col="green")
+legend("topright",c("Posterior","Prior"),col=c("red","blue"),lty=c(1,1),cex=1)
+
+plot(density(fullmatrix[,31]),col="red",main="Popluation Per Square Mile Posterior")
+lines(density(rnorm(50000,priordata[16,1],1/priordata[3,2])),col="blue")
+abline(v=0,col="green")
+legend("topright",c("Posterior","Prior"),col=c("red","blue"),lty=c(1,1),cex=1)
+
+```
+
+
+```{r,echo=FALSE}
+rownames(SummaryA)[17:31]=betanames[1:15]
+kable(SummaryA[c(17:31,47,117),],digits=3,caption="Full Model")
+
+```
+
+
+\pagebreak
+
+
+```{r,echo=FALSE,include=FALSE}
+#DISPLAY TOP MODEL PROBABILITIES
+delta=fullmatrix[,32:46]
+
+integer.base.b <-
+  function(x, b=2){
+    xi <- as.integer(x)
+    if(any(is.na(xi) | ((x-xi)!=0)))
+      print(list(ERROR="x not integer", x=x))
+    N <- length(x)
+    xMax <- max(x)	
+    ndigits <- (floor(logb(xMax, base=2))+1)
+    Base.b <- array(NA, dim=c(N, ndigits))
+    for(i in 1:ndigits){#i <- 1
+      Base.b[, ndigits-i+1] <- (x %% b)
+      x <- (x %/% b)
+    }
+    if(N ==1) Base.b[1, ] else Base.b
+  }
+
+
+
+convert.model.to.int = function(delta) {
+  ntemp = length(delta)
+  twos = 2^((ntemp-1):0)
+  sum(twos*delta)
+}
+# test 
+temp = rbinom(6,1,.5)
+
+convert.models.to.int = function(delta) {
+  ntemp = dim(delta)[2]
+  twos = 2^((ntemp-1):0)
+  delta%*% twos
+}
+
+
+binmat = integer.base.b(0:(2^15-1))
+dim(binmat)
+head(binmat)
+tail(binmat)
+
+#temp = (run1$sims.matrix)[,14:26]
+dim(delta)
+
+postmodels = convert.models.to.int(delta)
+modelsum = sort(table(postmodels), decreasing=TRUE)
+length(modelsum)
+as.integer(rownames(modelsum)[1:10])  # integer model numbers
+binmat[as.integer(rownames(modelsum)[1:10]),] # first 10 models predictors
+
+modeloutput = cbind(round(modelsum/sum(modelsum),4), 
+                    binmat[as.integer(rownames(modelsum)),])
+colnames(modeloutput) = c("prob", betanames[-16])
+rownames(modeloutput)[1:10]=1:10
+```
+
+
+```{r,echo=FALSE}
+kable(t(modeloutput[1:10,]),caption="Top 10 models in Variable Selection",cex=.4)   # table of top models and their probabilities
+```
+
+
+\pagebreak
+
+
+```{r,echo=FALSE,fig.cap="Sensitivity analysis of prior weight"}
+
+#PLOTS FOR SENSITIVITY ANALYSIS
+#% DATA VARIANCE
+par(mfrow=c(1,2))
+plot(density(fullmatrix[,23]),main="High School Graduate Posterior",col="black")
+lines(density(OutputB$Burnin.sims.matrix[,23]),col="red")
+lines(density(OutputC$Burnin.sims.matrix[,23]),col="blue")
+lines(density(OutputD$Burnin.sims.matrix[,23]),col="green")
+abline(v=0,col="black")
+legend("topright",title="Prior on Beta weight",c("5%","10%","50%","100%"),col=c("red","blue","green","black"),lty=c(1,1),cex=.5)
+
+plot(density(fullmatrix[,31]),main="Population Per Square Mile Posterior",col="black")
+lines(density(OutputB$Burnin.sims.matrix[,31]),col="red")
+lines(density(OutputC$Burnin.sims.matrix[,31]),col="blue")
+lines(density(OutputD$Burnin.sims.matrix[,31]),col="green")
+abline(v=0,col="black")
+legend("topright",title="Prior on Beta weight",c("5%","10%","50%","100%"),col=c("red","blue","green","black"),lty=c(1,1),cex=.5)
+```
+
+
+\pagebreak
+
+
+```{r,echo=FALSE,fig.cap="Sensitivity analysis of random effect variance"}
+
+#RANDOM EFFECT VARIANCE
+par(mfrow=c(1,2))
+plot(density(OutputH$Burnin.sims.matrix[,23]),col="blue",main="High School Graduate Posterior")
+lines(density(OutputF$Burnin.sims.matrix[,23]),col="purple")
+lines(density(fullmatrix[,23]),col="black")
+lines(density(OutputG$Burnin.sims.matrix[,23]),col="red")
+lines(density(OutputE$Burnin.sims.matrix[,23]),col="green")
+abline(v=0,col="black")
+legend("topright",title="Random Effect Variance",c("100","50","25","12.5","6.25"),col=c("green","purple","black","red","blue"),lty=c(1,1),cex=.5)
+
+plot(density(OutputH$Burnin.sims.matrix[,31]),col="blue",main="Population Per Square Mile Posterior")
+lines(density(OutputF$Burnin.sims.matrix[,31]),col="purple")
+lines(density(fullmatrix[,31]),col="black")
+lines(density(OutputG$Burnin.sims.matrix[,31]),col="red")
+lines(density(OutputE$Burnin.sims.matrix[,31]),col="green")
+abline(v=0,col="black")
+legend("topright",title="Random Effect Variance",c("100","50","25","12.5","6.25"),col=c("green","purple","black","red","blue"),lty=c(1,1),cex=.5)
+
+```
+
+
+\pagebreak
+
+
+```{r,echo=FALSE,fig.cap="Sensitivity analysis of PiDelta"}
+
+#PIDELTA change
+par(mfrow=c(1,2))
+plot(density(OutputpiA$Burnin.sims.matrix[,23]),col="blue",main="High School Graduate Posterior")
+lines(density(fullmatrix[,23]),col="black")
+lines(density(OutputpiB$Burnin.sims.matrix[,23]),col="red")
+abline(v=0,col="black")
+legend("topright",title="Change in Pidelta",c("PiDelta=.25","PiDelta=.5","PiDelta=.75"),col=c("blue","black","red"),lty=c(1,1),cex=.5)
+
+plot(density(OutputpiA$Burnin.sims.matrix[,31]),col="blue",main="Population Per Square Mile Posterior")
+lines(density(fullmatrix[,31]),col="black")
+lines(density(OutputpiB$Burnin.sims.matrix[,31]),col="red")
+abline(v=0,col="black")
+legend("topright",title="Change in Pidelta",c("PiDelta=.25","PiDelta=.5","PiDelta=.75"),col=c("blue","black","red"),lty=c(1,1),cex=.5)
+
+#TABLES OF PARAMETERS
+
+```
+
+
+\pagebreak
+```{r,echo=FALSE}
+rownames(SummaryB)[17:31]=betanames[1:15]
+rownames(SummaryC)[17:31]=betanames[1:15]
+rownames(SummaryD)[17:31]=betanames[1:15]
+rownames(SummaryE)[17:31]=betanames[1:15]
+rownames(SummaryF)[17:31]=betanames[1:15]
+rownames(SummaryG)[17:31]=betanames[1:15]
+rownames(SummaryH)[17:31]=betanames[1:15]
+rownames(SummarypiA)[17:31]=betanames[1:15]
+rownames(SummarypiB)[17:31]=betanames[1:15]
+
+
+kable(SummaryB[c(17:31,47,117),],digits=3,caption="Sensitivity Analysis: 5% of Prior data")
+kable(SummaryC[c(17:31,47,117),],digits=3,caption="Sensitivity Analysis: 10% of Prior data")
+kable(SummaryD[c(17:31,47,117),],digits=3,caption="Sensitivity Analysis: 50% of Prior data")
+kable(SummaryE[c(17:31,47,117),],digits=3,caption="Sensivity Analysis: Random Effect Standard Error = 6.25")
+kable(SummaryF[c(17:31,47,117),],digits=3,caption="Sensivity Analysis: Random Effect Standard Error = 12.5")
+kable(SummaryG[c(17:31,47,117),],digits=3,caption="Sensivity Analysis: Random Effect Standard Error = 50")
+kable(SummaryH[c(17:31,47,117),],digits=3,caption="Sensivity Analysis: Random Effect Standard Error = 100")
+kable(SummarypiA[c(17:31,47,117),],digits=3,caption="Sensitivity Analysis: PiDelta=.25")
+kable(SummarypiB[c(17:31,47,117),],digits=3,caption="Sensitivity Analysis: PiDelta=.75")
+
+
+
+
+
+```
+
+
+#Model
+
+```{r}
+model<-function()
+{ 
+  for(i in 1:N) {
+    y[i] ~ dnorm( mu[i] , tau )
+    
+    mu[i] <- beta0 + delta[1]*beta[1]*x[i,1]+ delta[2]*beta[2]*x[i,2]+ delta[3]*beta[3]*x[i,3] + delta[4]*beta[4]*x[i,4]+ delta[5]*beta[5]*x[i,5]+ 
+      delta[6]*beta[6]*x[i,6]+ delta[7]*beta[7]*x[i,7]+ delta[8]*beta[8]*x[i,8]+ delta[9]*beta[9]*x[i,9] + delta[10]*beta[10]*x[i,10]+ delta[11]*beta[11]*x[i,11]
+    + delta[12]*beta[12]*x[i,12]+ delta[13]*beta[13]*x[i,13]+ delta[14]*beta[14]*x[i,14]+ delta[15]*beta[15]*x[i,15]+epsilon[i]
+    
+    epsilon[i] ~ dnorm(randMu,randPrec)
+  }
+  
+  beta0 ~ dnorm( mbeta0 , precbeta0)
+  
+  deltatotal <- delta[1] + delta[2] + delta[3] + delta[4]
+  + delta[5] +  delta[6] +  delta[7] + delta[8] +  delta[9] +  delta[10] + delta[11] 
+  + delta[12] + delta[13] + delta[14]+ delta[15]
+  
+  for (j in 1:K) {
+    beta[j] ~ dnorm( m[j] , prec[j] )
+    delta[j]~dbern(pidelta)
+    betadelta[j]=beta[j]*delta[j]
+  }
+  tau ~ dgamma( tau.a , tau.b )
+  randPrec ~dgamma(randPrec.a,randPrec.b)
+  sigma <- 1 / sqrt( tau )
+}
+
+dataA<-list(N=68, K=15, m=priordata[-1,1], 
+            prec=priordata[-1,2], tau.a=26,
+            tau.b=8832.2, mbeta0=priordata[1,1], precbeta0=priordata[1,2],randMu=0,randPrec.a=4,randPrec.b=2500, x=scale(x), y=y,pidelta=.5)
+
+inits<-rep(list(list(randPrec=1,beta0=0, beta=rep(1,15),tau=1,epsilon=rep(1,68),delta=rep(.5,15))),1)
+
+parameters <- c("beta0", "beta" , "tau","epsilon","sigma","randPrec","delta","deltatotal","betadelta")
+```
+

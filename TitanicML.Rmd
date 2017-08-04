@@ -1,0 +1,287 @@
+---
+title: "Biostat273 Final Project"
+author: "Hubert Jenq"
+date: "12/9/2016"
+output: pdf_document
+---
+
+#Data:
+
+The Titanic dataset from kaggle.com will be analyzed. The dataset includes 891 passengers with 12 covariates that are: Passenger ID, Survived, Ticket class, name, sex, age, #siblings, #children/spouse, fare, cabin, port of where they embarked upon. The goal is to predict the passengers survival. Two features were generated. #family members was calculated by the sum of the siblings and children/spouses. The names of the passengers included different titles such as Mr., Miss, Sir, etc. so the titles were extracted and used as an additional covariate. The features that would not have an effect on the prediction of survival like passenger id (random) were dropped from the analysis
+
+#Method:
+
+Random forest, logistic regression with LASSO, and SVM with a linear and radial kernel will be implemented. The dataset was first split into 80/20 training/testing to determine which method would yield the best results. In order to optimize the parameters of the models, 10-repeats of 10-fold cross validation was done while varying parameters for each specific model. In random forest, mtry was varied from 2-27. Logistic regression had its lambda varied. The SVM models had the C parameter optimized where C=inf is a hard margin svm likely to overfit and C=0 would result in an underfit model.
+
+```{r,message=FALSE,include=FALSE}
+set.seed(1)
+
+library("e1071")
+library("caret")
+library(knitr)
+
+data=read.csv('train.csv')
+
+#Split data into 80/20
+trainindex=sample(1:nrow(data),round(.8*nrow(data)))
+testindex=1:nrow(data)
+testindex=testindex[-trainindex]
+
+str(data)
+
+#Change numeric variables that should be factors into factors
+makefactor <- c('Survived', 'Pclass', 'Sex', 'Embarked')
+data[makefactor] <- lapply(data[makefactor], function(x) as.factor(x))
+
+#Changes names to something useful for prediction like titles
+titles <-  gsub("^.*, (.*?)\\..*$", "\\1", data$Name)
+table(titles)
+data$names=as.factor(titles)
+
+#Add family size as a variable.
+data$famsize=data$SibSp+data$Parch
+
+#Use average age as NA age
+
+data$Age[is.na(data$Age)]=mean(data$Age[!is.na(data$Age)])
+#SVM
+
+# Setup for cross validation
+ctrl <- trainControl(method="repeatedcv",
+                     repeats=5,
+  summaryFunction=twoClassSummary,
+                     classProbs=TRUE)
+
+datatrain=data[trainindex,]
+datatest=data[testindex,]
+
+#do not use passenger id, cabin, survived, name, or ticket
+datatrain=datatrain[,-c(1,4,9,11)]
+datatest=datatest[,-c(1,4,9,11)]
+
+trainY=datatrain[,2]
+testX=datatest[,-c(1,2,4,11)]
+testX=datatest[,-c(1,2,4,11)]
+testY=datatest[,2]
+
+
+myControl <- trainControl(
+  method = "cv", 
+  number = 10,
+  repeats = 10, 
+  verboseIter = TRUE
+)
+
+rf_model <- train(
+  Survived ~.,
+  tuneGrid = data.frame(mtry = c(1:15)),
+  data = datatrain, 
+  method = "ranger", 
+  trControl = myControl,
+  importance = 'impurity'
+)
+
+#Random forest with varying mtry.
+rf_model <- train(
+  Survived ~.,
+  tuneLength = 20,
+  data = datatrain, 
+  method = "ranger", 
+  trControl = myControl,
+  importance = 'impurity'
+)
+
+
+#C is the fitting parameter, when infinity then hard margin SVM, when near 0 the model may underfit.
+svm_radial <- train(
+  Survived ~.,
+  tuneLength = 10,
+  data = datatrain, 
+  method = "svmRadial", 
+  trControl = myControl
+)
+
+#C is the fitting parameter, when infinity then hard margin SVM, when near 0 the model may underfit.
+svm_linear <- train(
+  Survived ~.,
+  tuneLength = 10,
+  data = datatrain, 
+  method = "svmLinear", 
+  trControl = myControl
+)
+
+#logistic regression with LASSO
+glm_model <- train(
+  Survived ~., 
+  method = "glmnet",
+  tuneGrid = expand.grid(alpha = 0:1,
+                         lambda = seq(0.0001, 1, length = 20)),
+  data = datatrain,
+  trControl = myControl
+)
+
+glmpredict <- predict(glm_model, datatest)
+rfpredict <- predict(rf_model,datatest)
+svmlinearpredict<-predict(svm_linear,datatest)
+svmradialpredict<-predict(svm_radial,datatest)
+
+```
+
+```{r}
+set.seed(1)
+
+library("e1071")
+library("caret")
+library(knitr)
+
+data=read.csv('train.csv')
+
+#Split data into 80/20
+trainindex=sample(1:nrow(data),round(.8*nrow(data)))
+testindex=1:nrow(data)
+testindex=testindex[-trainindex]
+
+str(data)
+
+#Change numeric variables that should be factors into factors
+makefactor <- c('Survived', 'Pclass', 'Sex', 'Embarked')
+data[makefactor] <- lapply(data[makefactor], function(x) as.factor(x))
+
+#Changes names to something useful for prediction like titles
+titles <-  gsub("^.*, (.*?)\\..*$", "\\1", data$Name)
+table(titles)
+data$names=as.factor(titles)
+
+#Add family size as a variable.
+data$famsize=data$SibSp+data$Parch
+
+#Use average age as NA age
+
+data$Age[is.na(data$Age)]=mean(data$Age[!is.na(data$Age)])
+#SVM
+
+# Setup for cross validation
+ctrl <- trainControl(method="repeatedcv",
+                     repeats=5,
+  summaryFunction=twoClassSummary,
+                     classProbs=TRUE)
+
+datatrain=data[trainindex,]
+datatest=data[testindex,]
+
+#do not use passenger id, cabin, survived, name, or ticket
+datatrain=datatrain[,-c(1,4,9,11)]
+datatest=datatest[,-c(1,4,9,11)]
+
+trainY=datatrain[,2]
+testX=datatest[,-c(1,2,4,11)]
+testX=datatest[,-c(1,2,4,11)]
+testY=datatest[,2]
+
+
+#myControl <- trainControl(
+  #method = "cv", 
+  #number = 10,
+  #repeats = 10, 
+  #verboseIter = TRUE
+#)
+
+#rf_model <- train(
+#  Survived ~.,
+#  tuneGrid = data.frame(mtry = c(1:15)),
+#  data = datatrain, 
+#  method = "ranger", 
+#  trControl = myControl,
+#  importance = 'impurity'
+#)
+
+#Random forest with varying mtry.
+#rf_model <- train(
+ # Survived ~.,
+#  tuneLength = 20,
+#  data = datatrain, 
+#  method = "ranger", 
+#  trControl = myControl,
+#  importance = 'impurity'
+#)
+
+
+#C is the fitting parameter, when infinity then hard margin SVM, when near 0 the model may underfit.
+#svm_radial <- train(
+ # Survived ~.,
+  #tuneLength = 10,
+  #data = datatrain, 
+  #method = "svmRadial", 
+  #trControl = myControl
+#)
+
+#C is the fitting parameter, when infinity then hard margin SVM, when near 0 the model may underfit.
+#svm_linear <- train(
+#  Survived ~.,
+#  tuneLength = 10,
+#  data = datatrain, 
+#  method = "svmLinear", 
+#  trControl = myControl
+#)
+
+#logistic regression with LASSO
+#glm_model <- train(
+#  Survived ~., 
+#  method = "glmnet",
+#  tuneGrid = expand.grid(alpha = 0:1,
+ #                        lambda = seq(0.0001, 1, length = 20)),
+#  data = datatrain,
+#  trControl = myControl
+#)
+
+glmpredict <- predict(glm_model, datatest)
+rfpredict <- predict(rf_model,datatest)
+svmlinearpredict<-predict(svm_linear,datatest)
+svmradialpredict<-predict(svm_radial,datatest)
+```
+
+###SVM
+Using the linear kernel we select a cost C=1 and have 281 support vectors. The radial kernel we get a cost of also 1 and 354 support vectors. The training error from the CV step show 0.1669 and 0.147 respectively. However, when used to predict the test set the linear and radial kernel gave training errors of 0.185 and 0.191 respectively. This is likely due to the overfitting from the radial kernel since it has 73 more support vectors in a dataset size of only 713. Both the SVM models could be overfitting due to the high number of support vectors compared to datapoints.
+
+```{r,message=FALSE}
+print(svm_linear$finalModel)
+print(svm_radial$finalModel)
+
+linearSVMerror=sum(svmlinearpredict!=datatest$Survived)/nrow(datatest)
+linearSVMerror
+
+radialSVMerror=sum(svmradialpredict!=datatest$Survived)/nrow(datatest)
+radialSVMerror
+```
+
+###Logistic regression with LASSO. 
+
+Logistic regression with LASSO yielded the lambda=0.0001 best CV training error of 0.176. The prediction on the training set gave an error of 0.179. The variable importance was taken from the logistic model by looking at the absolute value of the coefficients. Here we see that the names variable introduced gave the best prediction.
+
+```{r}
+glmerror=sum(glmpredict!=datatest$Survived)/nrow(datatest)
+glmerror
+varImp(glm_model)
+```
+
+###Random forest
+
+The random forest model used 500 trees and had the best OOB error of 16.69% with an mtry of 3 out of the 27 variables. The best random forest model gave an error of 0.179 on the test set prediction. Variable importance was assesed by the effect of prediction when the parameter values were permuted. Here we see 
+
+```{r}
+print(rf_model$finalModel)
+rferror=sum(rfpredict!=datatest$Survived)/nrow(datatest)
+rferror
+varImp(rf_model)
+```
+#Results
+
+We see that the four models have very similar predictive power based on the data. The logistic regression and RF have the same predictive accuracy but they put very different weights on the variable importance. I would choose the random forest model as the variable importance is interpretable and we do not have to worry about linearity conditions. Further improvement on the dataset can be done by imputing missing values and attempting to come up with new features such as determining which individuals are related in a family.
+
+```{r}
+summary=data.frame(t(c(linearSVMerror,radialSVMerror,glmerror,rferror)))
+colnames(summary)=c("Linear SVM","Radial SVM","Logistic /w LASSO","Random Forest")
+rownames(summary)="Test set error"
+kable(summary,caption="Model test error comparison")
+
+```

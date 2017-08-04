@@ -1,0 +1,272 @@
+---
+title: "Biostat 212 Final Project"
+author: "Hubert Jenq"
+date: "3/22/2017"
+output: pdf_document
+---
+
+#OECD Data set
+
+The organization for Economic Co-operation and Development (OECD) is a 35-member group that advocates policies that will help the economic and social climate of people around the world. As a result, the growth of gdp per capita (growth), per capita GDP (initgdp), population growth (popgro), average investment to GDP ratio (inv), and average secondary school enrollment rate (humancap) are of interest to compare between OECD countries and those not in OECD. The measurements in the dataset are for each 5-year period. In this analysis, we will not account for the temporal effects and assume that each measurement is a independent sample.
+
+To compare the difference in the above parameters between the OECD and non-OECD countries, a wilcoxon-rank sum test and ansari-bradley test will be used to detect differences in their median, and their dispersion. The null hypothesis for the wilcoxon-rank sum test is that the medians are equal. The null hypothesis for the Ansari-Bradley test is that they have the same dispersion parameter. The p-values for the tests between OECD countries and non-OECD countries are in table 1.
+
+```{r,include=FALSE}
+library(ggplot2)
+library(np)
+library(lattice)
+library(knitr)
+
+set.seed(1)
+
+setwd("~/Downloads")
+dat=read.csv("bs212_data2csv.csv")
+```
+
+```{r, echo=FALSE}
+
+#load oecd panel dataset
+data(oecdpanel)
+
+oecdzero=which(oecdpanel[,2]==0)
+oecdone=which(oecdpanel[,2]==1)
+
+#wilcoxon rank test
+wrstpval=c(wilcox.test(oecdpanel[oecdzero,1],oecdpanel[oecdone,1],conf.int=T)$p.value,
+  wilcox.test(oecdpanel[oecdzero,4],oecdpanel[oecdone,4])$p.value,
+  wilcox.test(oecdpanel[oecdzero,5],oecdpanel[oecdone,5])$p.value,
+  wilcox.test(oecdpanel[oecdzero,6],oecdpanel[oecdone,6])$p.value,
+  wilcox.test(oecdpanel[oecdzero,7],oecdpanel[oecdone,7])$p.value)
+
+wrstCIl=c(wilcox.test(oecdpanel[oecdzero,1],oecdpanel[oecdone,1],conf.int=T)$conf.int[1],
+  wilcox.test(oecdpanel[oecdzero,4],oecdpanel[oecdone,4],conf.int=T)$conf.int[1],
+  wilcox.test(oecdpanel[oecdzero,5],oecdpanel[oecdone,5],conf.int=T)$conf.int[1],
+  wilcox.test(oecdpanel[oecdzero,6],oecdpanel[oecdone,6],conf.int=T)$conf.int[1],
+  wilcox.test(oecdpanel[oecdzero,7],oecdpanel[oecdone,7],conf.int=T)$conf.int[1])
+
+wrstCIu=c(wilcox.test(oecdpanel[oecdzero,1],oecdpanel[oecdone,1],conf.int=T)$conf.int[2],
+  wilcox.test(oecdpanel[oecdzero,4],oecdpanel[oecdone,4],conf.int=T)$conf.int[2],
+  wilcox.test(oecdpanel[oecdzero,5],oecdpanel[oecdone,5],conf.int=T)$conf.int[2],
+  wilcox.test(oecdpanel[oecdzero,6],oecdpanel[oecdone,6],conf.int=T)$conf.int[2],
+  wilcox.test(oecdpanel[oecdzero,7],oecdpanel[oecdone,7],conf.int=T)$conf.int[2])
+
+#ansari bradley test
+abpval=c(ansari.test(oecdpanel[oecdzero,1],oecdpanel[oecdone,1])$p.value,
+         ansari.test(oecdpanel[oecdzero,4],oecdpanel[oecdone,4])$p.value,
+         ansari.test(oecdpanel[oecdzero,5],oecdpanel[oecdone,5])$p.value,
+         ansari.test(oecdpanel[oecdzero,6],oecdpanel[oecdone,6])$p.value,
+         ansari.test(oecdpanel[oecdzero,7],oecdpanel[oecdone,7])$p.value)
+
+wrstmat=cbind(wrstpval,wrstCIl,wrstCIu)
+abmat=data.frame(abpval)
+rownames(wrstmat)=colnames(oecdpanel)[c(1,4,5,6,7)]
+rownames(abmat)=colnames(oecdpanel)[c(1,4,5,6,7)]
+colnames(wrstmat)=c("P-value", "Lower 95% CI value","Upper 95% CI value")
+colnames(abmat)="P-value"
+kable(wrstmat,caption="Wilcoxon Rank Sum test between OECD and non-OECD countries ")
+kable(abmat,caption="Ansari-Bradley test between OECD and non-OECD countries")
+
+```
+
+Here we see that for all of the variables of interest they are significantly different in their disperson and mean between the OECD and non-OECD countries. Correcting for multiple hypotheses will still yield significant p-values for all of the tests performed. From this, we can conclude that there are significant differneces in population growth, GDP per capita, GDP growth, investment to gdp ratio, and secondary school enrollment between OECD and non-OECD countries.
+
+The 95% confidence intervals can be examined for direction. We see that the OECD countries have significantly higher GDP growth, initial GDP, investment per GDP, and secondary education. Non-OECD countries have higher population growth rates.
+
+To further visualize the difference, a kernel density estimate of popgro is constructed below in figure 1 for OCED countries and non-OECD countries. Here we see the population growth for OECD members is shifted to the right, showing that there are higher average annual population growth rates for OECD members compared to non-OECD members.
+
+```{r, echo=FALSE,fig.cap="Kernel Density Estimate"}
+plot(density(oecdpanel[oecdone,4]),xlim=c(5,10),main="Kernel Density Estimation of popgro",xlab="Average annual population growth rate",ylab="PDF",col="red")
+lines(density(oecdpanel[oecdzero,4]),col="blue")
+legend("topright",c("OECD Member","Not OECD Member"),col=c("red","blue"),lwd=c(1,1))
+```
+
+#HIV Dataset
+
+##Data
+
+In this dataset of 60 observations and 30 covariates, 5 covariates are selected randomly to analyze. T3_57p28pon4p, T3_RAnR7pon8p, T4_DRn38pon4p, T4_DRn38nonROp8p, and T3_4pon3p are the covariates of interest. Histograms of these 5 covariates in the HIV positive and HIV negative group are constructed. The data for the first visit is only used so the treatment effect is not present. 
+From the histograms below, it seems that biological age-true age, T3_4pon3p, T4_DRn38nonROp8p, and T3_RAnR7pon8p have distinct distributions for the HIV positive and HIV negative groups. To further examine this, a wilcoxon rank sum test and ansari-bradley test will be performed to see whether there is a difference in the median or dispersion in the HIV positive vs. negative group. 
+
+```{r,echo=FALSE}
+
+
+#those that are HIV positive/negative, only first visits.
+hivpos=which(((dat[,4]==1)*(dat[,5]==1))==1)
+hivneg=which(((dat[,4]==0)*(dat[,5]==1))==1)
+
+#look at the distributions of age differences
+
+#Bioage - true age
+agediff=as.data.frame(dat[,2]-dat[,3])
+colnames(agediff)[1]="adiff"
+agediff$label=rep('0',30)
+agediff$label[hivpos]="hivpos"
+agediff$label[hivneg]="hivneg"
+
+dat$label=agediff$label
+#histograms of the above
+
+dat=cbind(dat,agediff[,1])
+colnames(dat)[32]="adiff"
+
+#pick 5 random covariates
+#sample(6:30,5)
+#12,14,19,25,10
+
+#Make histograms of the random 5 covariates.
+```
+
+```{r,echo=FALSE,fig.width=3.5,fig.height=3}
+
+ggplot(agediff,aes(x=adiff)) + labs(title="Biological age - True age") +
+  geom_histogram(data=subset(agediff,label == 'hivpos'),bins=10,aes(fill=label), alpha = 0.2) +
+  geom_histogram(data=subset(agediff,label == 'hivneg'),bins=10,aes(fill=label), alpha = 0.2) + scale_fill_manual(name="HIVstatus", values=c("blue","red"),labels=c("negative","positive"))
+
+
+ggplot(dat[,c(12,31)],aes(x=T3_57p28pon4p)) +  labs(title="T3_57p28pon4p") +
+  geom_histogram(data=(subset(dat[,c(12,31)],label == 'hivpos')),bins=10,aes(fill=label), alpha = 0.2) +
+  geom_histogram(data=(subset(dat[,c(12,31)],label == 'hivneg')),bins=10,aes(fill=label), alpha = 0.2) + scale_fill_manual(name="HIVstatus", values=c("blue","red"),labels=c("negative","positive"))
+ggplot(dat[,c(14,31)],aes(x=T3_RAnR7pon8p)) +  labs(title="T3_RAnR7pon8p") +
+  geom_histogram(data=(subset(dat[,c(14,31)],label == 'hivpos')),bins=10,aes(fill=label), alpha = 0.2) +
+  geom_histogram(data=(subset(dat[,c(14,31)],label == 'hivneg')),bins=10,aes(fill=label), alpha = 0.2) + scale_fill_manual(name="HIVstatus", values=c("blue","red"),labels=c("negative","positive"))
+ggplot(dat[,c(19,31)],aes(x=T4_DRn38pon4p)) +  labs(title="T4_DRn38pon4p") +
+  geom_histogram(data=(subset(dat[,c(19,31)],label == 'hivpos')),bins=10,aes(fill=label), alpha = 0.2) +
+  geom_histogram(data=(subset(dat[,c(19,31)],label == 'hivneg')),bins=10,aes(fill=label), alpha = 0.2) + scale_fill_manual(name="HIVstatus", values=c("blue","red"),labels=c("negative","positive"))
+ggplot(dat[,c(25,31)],aes(x=T4_DRn38nonROp8p)) +  labs(title="T4_DRn38nonROp8p") +
+  geom_histogram(data=(subset(dat[,c(25,31)],label == 'hivpos')),bins=10,aes(fill=label), alpha = 0.2) +
+  geom_histogram(data=(subset(dat[,c(25,31)],label == 'hivneg')),bins=10,aes(fill=label), alpha = 0.2) + scale_fill_manual(name="HIVstatus", values=c("blue","red"),labels=c("negative","positive"))
+ggplot(dat[,c(10,31)],aes(x=T3_4pon3p),main="blah") + labs(title="T3_4pon3p") +
+  geom_histogram(data=(subset(dat[,c(10,31)],label == 'hivpos')),bins=10,aes(fill=label), alpha = 0.2) +
+  geom_histogram(data=(subset(dat[,c(10,31)],label == 'hivneg')),bins=10,aes(fill=label), alpha = 0.2) + scale_fill_manual(name="HIVstatus", values=c("blue","red"),labels=c("negative","positive"))
+```
+
+```{r,echo=FALSE,include=FALSE}
+
+paireddiff=rep(0,30)
+post=data.frame(matrix(0,30,32))
+pre=data.frame(matrix(0,30,32))
+
+for(i in 1:30){
+  paireddiff[i]=dat[i*2,32]-dat[i*2-1,32]
+  post[i,]=dat[i*2,]
+  pre[i,]=dat[i*2-1,]
+}
+
+#only look at HIV positive paired 1st and 3rd visit data
+hivpositive=which(post[,4]==1)
+
+#Test for treatment effect on 5 parameters and age difference.
+txpvalues = c(wilcox.test(pre[hivpositive,32],post[hivpositive,32],paired=TRUE)$p.value,
+wilcox.test(pre[hivpositive,12],post[hivpositive,12],paired=TRUE)$p.value,
+wilcox.test(pre[hivpositive,14],post[hivpositive,14],paired=TRUE)$p.value,
+wilcox.test(pre[hivpositive,19],post[hivpositive,19],paired=TRUE)$p.value,
+wilcox.test(pre[hivpositive,25],post[hivpositive,25],paired=TRUE)$p.value,
+wilcox.test(pre[hivpositive,10],post[hivpositive,10],paired=TRUE)$p.value)
+
+txl = c(wilcox.test(pre[hivpositive,32],post[hivpositive,32],paired=TRUE,conf.int=T)$conf.int[1],
+wilcox.test(pre[hivpositive,12],post[hivpositive,12],paired=TRUE,conf.int=T)$conf.int[1],
+wilcox.test(pre[hivpositive,14],post[hivpositive,14],paired=TRUE,conf.int=T)$conf.int[1],
+wilcox.test(pre[hivpositive,19],post[hivpositive,19],paired=TRUE,conf.int=T)$conf.int[1],
+wilcox.test(pre[hivpositive,25],post[hivpositive,25],paired=TRUE,conf.int=T)$conf.int[1],
+wilcox.test(pre[hivpositive,10],post[hivpositive,10],paired=TRUE,conf.int=T)$conf.int[1])
+
+txu = c(wilcox.test(pre[hivpositive,32],post[hivpositive,32],paired=TRUE,conf.int=T)$conf.int[2],
+wilcox.test(pre[hivpositive,12],post[hivpositive,12],paired=TRUE,conf.int=T)$conf.int[2],
+wilcox.test(pre[hivpositive,14],post[hivpositive,14],paired=TRUE,conf.int=T)$conf.int[2],
+wilcox.test(pre[hivpositive,19],post[hivpositive,19],paired=TRUE,conf.int=T)$conf.int[2],
+wilcox.test(pre[hivpositive,25],post[hivpositive,25],paired=TRUE,conf.int=T)$conf.int[2],
+wilcox.test(pre[hivpositive,10],post[hivpositive,10],paired=TRUE,conf.int=T)$conf.int[2])
+
+pvalues=(c(wilcox.test(agediff[hivpos,1],agediff[hivneg,1])$p.value,
+wilcox.test(dat[hivpos,12],dat[hivneg,12])$p.value,
+wilcox.test(dat[hivpos,14],dat[hivneg,14])$p.value,
+wilcox.test(dat[hivpos,19],dat[hivneg,19])$p.value,
+wilcox.test(dat[hivpos,25],dat[hivneg,25])$p.value,
+wilcox.test(dat[hivpos,10],dat[hivneg,10])$p.value))
+
+wrstCIlower=(c(wilcox.test(agediff[hivpos,1],agediff[hivneg,1],conf.int=T)$conf.int[1],
+wilcox.test(dat[hivpos,12],dat[hivneg,12],conf.int=T)$conf.int[1],
+wilcox.test(dat[hivpos,14],dat[hivneg,14],conf.int=T)$conf.int[1],
+wilcox.test(dat[hivpos,19],dat[hivneg,19],conf.int=T)$conf.int[1],
+wilcox.test(dat[hivpos,25],dat[hivneg,25],conf.int=T)$conf.int[1],
+wilcox.test(dat[hivpos,10],dat[hivneg,10],conf.int=T)$conf.int[1]))
+
+wrstCIupper=(c(wilcox.test(agediff[hivpos,1],agediff[hivneg,1],conf.int=T)$conf.int[2],
+wilcox.test(dat[hivpos,12],dat[hivneg,12],conf.int=T)$conf.int[2],
+wilcox.test(dat[hivpos,14],dat[hivneg,14],conf.int=T)$conf.int[2],
+wilcox.test(dat[hivpos,19],dat[hivneg,19],conf.int=T)$conf.int[2],
+wilcox.test(dat[hivpos,25],dat[hivneg,25],conf.int=T)$conf.int[2],
+wilcox.test(dat[hivpos,10],dat[hivneg,10],conf.int=T)$conf.int[2]))
+
+abpvalues=(c(ansari.test(agediff[hivpos,1],agediff[hivneg,1])$p.value,
+             ansari.test(dat[hivpos,12],dat[hivneg,12])$p.value,
+             ansari.test(dat[hivpos,14],dat[hivneg,14])$p.value,
+             ansari.test(dat[hivpos,19],dat[hivneg,19])$p.value,
+             ansari.test(dat[hivpos,25],dat[hivneg,25])$p.value,
+             ansari.test(dat[hivpos,10],dat[hivneg,10])$p.value))
+
+txmat=data.frame(txpvalues,row.names=c("agediff",colnames(dat)[c(12,14,19,25,10)]))
+txmat=cbind(txmat,txl,txu)
+
+wrstmat=data.frame(pvalues,row.names=c("agediff",colnames(dat)[c(12,14,19,25,10)]))
+wrstmat=cbind(wrstmat,wrstCIlower,wrstCIupper)
+
+abmat=data.frame(abpvalues,row.names=c("agediff",colnames(dat)[c(12,14,19,25,10)]))
+
+colnames(abmat)=c("Ansari-Bradley P-value for HIV effect")
+colnames(txmat)=c("WSRT p-val for treatment effect","Lower 95% CI","Upper 95% CI")
+colnames(wrstmat)=c("WRST p-val for HIV effect","Lower 95% CI","Upper 95% CI")
+```
+
+\newpage
+
+The p-values and confidence intervals  for the WRST and AB test can be found in table 3 and 4. Here we see that the median shift is significant for biological age-true age, T3_4pon3p, T4_DRn38nonROp8p, and T3_RAnR7pon8p. The above covariates would still be significant with bonferroni correction for multiple hypotheses. The confidence interval for age difference is 3.04 to 8.66 which can be interpreted as there is a 95% chance the true median shift is captured by this interval. A positive median shift indicates that the HIV positive patients have a larger difference between their biological and actual age which points towards accelerated aging. The other three significant covariates have a negative effect, indicating that the HIV negative group has a larger value than the HIV positive group.
+The Ansari-Bradley tests came up all non-significant indicating that there is no dispersion difference between the covariates of the HIV positive and HIV negative groups.
+
+```{r,echo=FALSE}
+kable(wrstmat,caption="Wilcoxon Rank sum test for HIV effect",digits=3)
+kable(abmat,caption="Ansari-Bradley test for HIV effect",digits=3)
+```
+
+The treatment effect for the HIV positive patients can be examined by comparing the paired data of the 1st and 3rd visit since the treatment is administered after the first visit. Wilcoxon signed rank tests are performed on the same 5 covariates and difference in biological and true age and the values are shown in table 5. Here we see that T3_4pon3p, T4_DRn38nonROp8p, and T3_RAnR7pon8p have significantly different medians for the treated vs. the untreated. By treating the patients, the values of the above covariates decrease. This is consistent with HIV positive/negative patients where the HIV positive patients had higher values of the same three covariates.
+
+```{r,echo=FALSE}
+kable(txmat,caption="Wilcoxon signed rank test for treatment effect",digits=3)
+```
+
+```{r,echo=FALSE,include=FALSE}
+
+#Comparison of age differnece
+plot(density(agediff[hivpos,1]),xlim=c(-10,25),ylim=c(0,.10),main="Kernel Density Estimation of Age Difference",xlab="Age difference",ylab="PDF",col="red")
+lines(density(agediff[hivneg,1]),col="blue")
+legend("topright",c("HIV positive","HIV negative"),col=c("red","blue"),lwd=c(1,1))
+
+hivpred=npcdens(adiff~T3_4pon3p,data=dat[hivpos,])
+hivnegpred=npcdens(adiff~T3_4pon3p,data=dat[hivneg,])
+
+grid=expand.grid(adiff=seq(from=-20,to=20,by=.1),T3_4pon3p=seq(from=-5,to=100,by=1))
+  
+fhat=predict(hivpred,newdata=grid)
+fneghat=predict(hivnegpred,newdata=grid)
+
+```
+
+To further explore the age difference in the HIV positive and negative group, a kernel density estimation is constructed and graphed in figure 2. Here we see that the HIV positive groups PDF curve is shifted to the right indicating that the age difference is larger. A larger age difference corresponds to accelerated aging which is consistent with our wilcoxon rank sum tests.
+
+```{r,echo=FALSE,fig.cap="Kernel Density Estimation of Age difference"}
+
+plot(density(agediff[hivpos,1]),xlim=c(-10,25),ylim=c(0,.12),xlab="Age difference",ylab="PDF",col="red")
+lines(density(agediff[hivneg,1]),col="blue")
+legend("topright",c("HIV positive","HIV negative"),col=c("red","blue"),lwd=c(1,1))
+```
+
+The two dimensional kernel density estimate of T3_4pon3p and age difference is constructed for the HIV positive and negative groups since T3_4pon3p was shown to be significantly different. Here we see that the bivariate PDF are different between the HIV positive and negative groups. There seems to be no interaction between T3_4pon3p and age difference in the HIV negative group since the PDF of age difference is the despite the value of T3_4pon3p. However, in the HIV positive group T3_4pon3p does affect the PDF of the age difference.
+
+```{r,echo=FALSE,fig.width=3.5,fig.height=4}
+wireframe(fhat~grid$adiff*grid$T3_4pon3p,scales=list(arrows=FALSE),xlab="Age Difference",ylab="T3_4pon3p",zlab="PDF",main="HIV Positive patients")
+
+wireframe(fneghat~grid$adiff*grid$T3_4pon3p,scales=list(arrows=FALSE),xlab="Age Difference",ylab="T3_4pon3p",zlab="PDF",main="HIV Negative patients")
+```
+
+
+From the above analyses, we see three covariates T3_4pon3p, T4_DRn38nonROp8p, and T3_RAnR7pon8p are significantly different in the HIV positive and negative groups. Additionally, the age difference is significant in the HIV positive and negative groups. Treatment within the HIV positive group will also significantly change the medians of the above three covariates. Finally, we see that there is interaction between T3_4pon3p and age difference from the two-dimensional kernel density estimate that was constructed.
